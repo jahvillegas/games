@@ -7,13 +7,11 @@
   <title>Matzah Run Mobile</title>
   <style>
     :root {
-      --ui-bg: rgba(0, 0, 0, 0.28);
+      --ui-bg: rgba(0, 0, 0, 0.22);
       --ui-border: rgba(255, 255, 255, 0.18);
       --ui-text: #ffffff;
     }
-
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
     html, body {
       margin: 0;
       padding: 0;
@@ -25,26 +23,9 @@
       font-family: Arial, sans-serif;
       touch-action: none;
     }
-
-    body {
-      position: fixed;
-      inset: 0;
-    }
-
-    #app {
-      position: fixed;
-      inset: 0;
-      overflow: hidden;
-      background: #111;
-    }
-
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      touch-action: none;
-    }
-
+    body { position: fixed; inset: 0; }
+    #app { position: fixed; inset: 0; overflow: hidden; background: #111; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
     .topbar {
       position: fixed;
       top: env(safe-area-inset-top, 0);
@@ -56,7 +37,6 @@
       z-index: 10;
       padding: 10px 14px 0;
     }
-
     .chip {
       pointer-events: auto;
       background: var(--ui-bg);
@@ -67,7 +47,6 @@
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
     }
-
     .controls {
       position: fixed;
       left: 0;
@@ -76,51 +55,46 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      padding: 14px 16px 10px;
+      padding: 10px 12px 8px;
       z-index: 11;
       pointer-events: none;
     }
-
     .dpad, .actions {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       pointer-events: auto;
     }
-
     .btn {
       user-select: none;
       border: 1px solid rgba(255,255,255,0.2);
       background: rgba(255,255,255,0.12);
       color: white;
-      border-radius: 18px;
-      min-width: 62px;
-      min-height: 62px;
+      border-radius: 16px;
+      width: 56px;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 700;
       box-shadow: 0 8px 24px rgba(0,0,0,0.22);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
     }
-
     .btn:active, .btn.pressed {
       transform: scale(0.97);
       background: rgba(255,255,255,0.2);
     }
-
     .btn.jump {
-      min-width: 82px;
-      min-height: 82px;
+      width: 76px;
+      height: 76px;
       border-radius: 999px;
-      font-size: 18px;
+      font-size: 16px;
       padding: 0 12px;
     }
-
     .hint {
       position: fixed;
-      bottom: calc(env(safe-area-inset-bottom, 0) + 108px);
+      bottom: calc(env(safe-area-inset-bottom, 0) + 92px);
       left: 50%;
       transform: translateX(-50%);
       z-index: 9;
@@ -133,24 +107,19 @@
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
       pointer-events: none;
+      display: none;
     }
-
     @media (min-width: 900px) {
-      .btn { min-width: 76px; min-height: 76px; }
-      .btn.jump { min-width: 98px; min-height: 98px; }
+      .btn { width: 72px; height: 72px; }
+      .btn.jump { width: 94px; height: 94px; }
     }
   </style>
 </head>
 <body>
   <div id="app">
     <canvas id="game"></canvas>
-
-    <div class="topbar">
-      <div class="chip" id="statusChip">Tap anywhere to begin</div>
-    </div>
-
+    <div class="topbar"><div class="chip" id="statusChip">Tap anywhere to begin</div></div>
     <div class="hint" id="hintBox">Playable on iPhone. Use touch controls below.</div>
-
     <div class="controls">
       <div class="dpad">
         <div class="btn" id="leftBtn">◀</div>
@@ -161,7 +130,6 @@
       </div>
     </div>
   </div>
-
 <script>
 (function () {
   const canvas = document.getElementById('game');
@@ -184,22 +152,25 @@
   const WORLD_WIDTH = 3200;
   const WATER_Y = 540;
   const STORY_REVEAL_SPEED = 4;
+  const STORY_SEPARATOR = '\n';
 
   const STORY_LINES = [
     '3000 years ago...',
     'You are a slave in Egypt.',
     'Get to the matzah and find your way to freedom!'
   ];
-  const STORY_FULL = STORY_LINES.join('\n');
+  const STORY_FULL = STORY_LINES.join(STORY_SEPARATOR);
 
   let gameState = 'title';
   let currentLevel = 0;
   let storyTick = 0;
-  let musicStarted = false;
   let gameWon = false;
+  let musicStarted = false;
   let redWaterAmount = 0;
   let scaleX = 1;
   let scaleY = 1;
+  let melodyInterval = null;
+  let droneInterval = null;
 
   const keys = { left: false, right: false, jump: false };
   const camera = { x: 0 };
@@ -219,7 +190,7 @@
 
   const levels = [
     {
-      start: { x: 140, y: 450 },
+      start: { x: 220, y: 450 },
       platforms: [
         { x: 0, y: 530, w: 260, h: 70 },
         { x: 320, y: 510, w: 220, h: 24 },
@@ -235,7 +206,7 @@
       goal: { x: 2915, y: 312, w: 34, h: 26 }
     },
     {
-      start: { x: 140, y: 450 },
+      start: { x: 220, y: 450 },
       platforms: [
         { x: 0, y: 530, w: 240, h: 70 },
         { x: 310, y: 505, w: 180, h: 22 },
@@ -253,7 +224,7 @@
       goal: { x: 2975, y: 172, w: 34, h: 26 }
     },
     {
-      start: { x: 140, y: 450 },
+      start: { x: 220, y: 450 },
       platforms: [
         { x: 0, y: 530, w: 180, h: 70 },
         { x: 240, y: 495, w: 85, h: 18 },
@@ -277,7 +248,7 @@
       goal: { x: 3035, y: 72, w: 34, h: 26 }
     },
     {
-      start: { x: 140, y: 450 },
+      start: { x: 220, y: 450 },
       platforms: [
         { x: 0, y: 530, w: 130, h: 70 },
         { x: 210, y: 500, w: 60, h: 16 },
@@ -308,7 +279,7 @@
       goal: { x: 3035, y: 62, w: 34, h: 26 }
     },
     {
-      start: { x: 140, y: 450 },
+      start: { x: 220, y: 450 },
       platforms: [
         { x: 0, y: 530, w: 95, h: 70 },
         { x: 150, y: 505, w: 46, h: 14 },
@@ -366,39 +337,28 @@
     ctx.scale(scaleX, scaleY);
   }
 
-  function setStatus(text) {
-    statusChip.textContent = text;
-  }
-
+  function setStatus(text) { statusChip.textContent = text; }
   function setHint(text, visible) {
     hintBox.textContent = text;
     hintBox.style.display = visible ? 'block' : 'none';
   }
 
-  function setButtonState(btn, pressed) {
-    if (pressed) btn.classList.add('pressed');
-    else btn.classList.remove('pressed');
-  }
-
   function bindTouchButton(btn, keyName) {
     function press(ev) {
       ev.preventDefault();
+      beginAudioAndMusic();
       keys[keyName] = true;
-      setButtonState(btn, true);
+      btn.classList.add('pressed');
     }
     function release(ev) {
       ev.preventDefault();
       keys[keyName] = false;
-      setButtonState(btn, false);
+      btn.classList.remove('pressed');
     }
     btn.addEventListener('pointerdown', press);
     btn.addEventListener('pointerup', release);
     btn.addEventListener('pointercancel', release);
-    btn.addEventListener('pointerleave', function () {
-      if (keyName !== 'jump') return;
-      keys[keyName] = false;
-      setButtonState(btn, false);
-    });
+    btn.addEventListener('pointerleave', release);
   }
 
   function playTone(freq, startTime, duration, type, volume) {
@@ -437,9 +397,6 @@
     src.start(startTime);
   }
 
-  let melodyInterval = null;
-  let droneInterval = null;
-
   function playMusic() {
     if (!audioCtx || musicStarted) return;
     musicStarted = true;
@@ -447,11 +404,6 @@
     const melody = [0,1,2,1,0,4,3,2,1,2,4,3,2,1,0,6,4,3,2,1,0,1,2,4,3,2,1,0,4,2,1,0];
     const durations = [0.22,0.18,0.22,0.18,0.28,0.22,0.18,0.32];
     let step = 0;
-
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume().catch(function () {});
-    }
-
     melodyInterval = setInterval(function () {
       if (audioCtx.state !== 'running') return;
       const now = audioCtx.currentTime;
@@ -464,7 +416,6 @@
       if (step % 4 === 2) playDrum(now + 0.08, false);
       step += 1;
     }, 260);
-
     droneInterval = setInterval(function () {
       if (audioCtx.state !== 'running') return;
       const now = audioCtx.currentTime;
@@ -476,14 +427,8 @@
   function rectsOverlap(a, b) {
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   }
-
-  function playerRect() {
-    return { x: player.x, y: player.y, w: player.w, h: player.h };
-  }
-
-  function goalRect(goal) {
-    return { x: goal.x, y: goal.y, w: goal.w, h: goal.h };
-  }
+  function playerRect() { return { x: player.x, y: player.y, w: player.w, h: player.h }; }
+  function goalRect(goal) { return { x: goal.x, y: goal.y, w: goal.w, h: goal.h }; }
 
   function resetFrogs() {
     frogs.length = 0;
@@ -533,6 +478,8 @@
     redWaterAmount = 0;
     resetPlayer();
     resetHazards();
+    setHint('Playable on iPhone. Use touch controls below.', true);
+    setStatus('Tap anywhere to begin');
   }
 
   function nextLevel() {
@@ -541,10 +488,11 @@
     if (currentLevel >= levels.length) {
       gameWon = true;
       gameState = 'win';
-      currentLevel = levels.length - 1;
+      setStatus('You win');
     } else {
       resetPlayer();
       resetHazards();
+      setStatus('Level ' + (currentLevel + 1));
     }
   }
 
@@ -553,19 +501,13 @@
       storyTick += 1;
       return;
     }
-
     if (gameState !== 'game') return;
 
     redWaterAmount += 0.00035;
     if (redWaterAmount > 1) redWaterAmount = 1;
 
     if (Math.random() < 0.012) {
-      hail.push({
-        x: camera.x + 40 + Math.random() * (BASE_W - 80),
-        y: -10,
-        vy: 4 + Math.random() * 2,
-        size: 4 + Math.random() * 3
-      });
+      hail.push({ x: camera.x + 40 + Math.random() * (BASE_W - 80), y: -10, vy: 4 + Math.random() * 2, size: 4 + Math.random() * 3 });
     }
 
     const level = levels[currentLevel];
@@ -573,23 +515,14 @@
     const right = keys.right;
     const jump = keys.jump;
 
-    if (left) {
-      player.vx -= MOVE_ACCEL;
-      player.facing = -1;
-    }
-    if (right) {
-      player.vx += MOVE_ACCEL;
-      player.facing = 1;
-    }
-
+    if (left) { player.vx -= MOVE_ACCEL; player.facing = -1; }
+    if (right) { player.vx += MOVE_ACCEL; player.facing = 1; }
     if (!left && !right) {
       player.vx *= FRICTION;
       if (Math.abs(player.vx) < 0.05) player.vx = 0;
     }
-
     if (player.vx > MOVE_SPEED) player.vx = MOVE_SPEED;
     if (player.vx < -MOVE_SPEED) player.vx = -MOVE_SPEED;
-
     if (jump && player.onGround) {
       player.vy = JUMP_SPEED;
       player.onGround = false;
@@ -616,12 +549,7 @@
       const frog = frogs[i];
       frog.phase += 0.06;
       frog.y = frog.baseY - Math.abs(Math.sin(frog.phase)) * frog.jumpHeight;
-      const hitbox = {
-        x: frog.x + frog.w * 0.1,
-        y: frog.y + frog.h * 0.18,
-        w: frog.w * 0.8,
-        h: frog.h * 0.75
-      };
+      const hitbox = { x: frog.x + frog.w * 0.1, y: frog.y + frog.h * 0.18, w: frog.w * 0.8, h: frog.h * 0.75 };
       if (rectsOverlap(playerRect(), hitbox)) {
         levelReset();
         return;
@@ -635,19 +563,15 @@
         levelReset();
         return;
       }
-      if (h.y > WATER_Y || h.y > BASE_H + 20) {
-        hail.splice(i, 1);
-      }
+      if (h.y > WATER_Y || h.y > BASE_H + 20) hail.splice(i, 1);
     }
 
     if (player.x < -40) player.x = -40;
     if (player.x + player.w > WORLD_WIDTH + 40) player.x = WORLD_WIDTH + 40 - player.w;
-
     if (player.y > BASE_H + 90) {
       levelReset();
       return;
     }
-
     if (rectsOverlap(playerRect(), goalRect(level.goal))) {
       nextLevel();
       return;
@@ -669,7 +593,6 @@
     ctx.lineTo(sx, baseY);
     ctx.closePath();
     ctx.fill();
-
     ctx.fillStyle = rightColor;
     ctx.beginPath();
     ctx.moveTo(sx, topY);
@@ -686,16 +609,13 @@
     sky.addColorStop(1, '#7a4a2d');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, BASE_W, BASE_H);
-
     const bgShift = camera.x * 0.25;
     const duneShift = camera.x * 0.45;
     const nearShift = camera.x * 0.7;
-
     ctx.fillStyle = 'rgba(255,220,140,0.9)';
     ctx.beginPath();
     ctx.arc(150 - bgShift * 0.15, 120, 45, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = '#c98d4a';
     ctx.beginPath();
     ctx.moveTo(-500 - duneShift, 380);
@@ -706,14 +626,12 @@
     ctx.lineTo(-500 - duneShift, WATER_Y);
     ctx.closePath();
     ctx.fill();
-
     drawPyramid(900, 380, 150, 120, '#d8b26e', '#bf9756', bgShift);
     drawPyramid(650, 395, 100, 220, '#cfa662', '#b88949', bgShift);
     drawPyramid(1450, 390, 130, 160, '#d2ab68', '#b98d50', bgShift);
     drawPyramid(1850, 400, 110, 210, '#c9a15e', '#af8347', bgShift);
     drawPyramid(2350, 390, 140, 150, '#d8b26e', '#bf9756', bgShift);
     drawPyramid(2750, 400, 100, 220, '#cfa662', '#b88949', bgShift);
-
     ctx.fillStyle = '#e0b56d';
     ctx.beginPath();
     ctx.moveTo(-600 - nearShift, 470);
@@ -725,7 +643,6 @@
     ctx.lineTo(-600 - nearShift, WATER_Y);
     ctx.closePath();
     ctx.fill();
-
     const topR = Math.round(77 + (180 - 77) * redWaterAmount);
     const topG = Math.round(182 + (40 - 182) * redWaterAmount);
     const topB = Math.round(229 + (40 - 229) * redWaterAmount);
@@ -737,7 +654,6 @@
     waterGrad.addColorStop(1, 'rgb(' + botR + ',' + botG + ',' + botB + ')');
     ctx.fillStyle = waterGrad;
     ctx.fillRect(0, WATER_Y, BASE_W, BASE_H - WATER_Y);
-
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.lineWidth = 2;
     for (let row = 0; row < 3; row += 1) {
@@ -785,7 +701,6 @@
     const py = player.y;
     const cx = px + player.w / 2;
     const dir = player.facing >= 0 ? 1 : -1;
-
     ctx.fillStyle = '#d9d2a6';
     ctx.beginPath();
     ctx.moveTo(cx - 7, py + 15);
@@ -794,30 +709,22 @@
     ctx.lineTo(cx - 10, py + 42);
     ctx.closePath();
     ctx.fill();
-
     ctx.fillStyle = '#f2c7a5';
     ctx.beginPath();
     ctx.arc(cx, py + 8, 7, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = '#333';
     ctx.beginPath();
     ctx.arc(cx, py + 6, 7.5, Math.PI, 0);
     ctx.fill();
-
     ctx.beginPath();
     if (dir > 0) {
-      ctx.moveTo(cx - 6, py + 8);
-      ctx.lineTo(cx - 8, py + 18);
-      ctx.lineTo(cx - 4, py + 18);
+      ctx.moveTo(cx - 6, py + 8); ctx.lineTo(cx - 8, py + 18); ctx.lineTo(cx - 4, py + 18);
     } else {
-      ctx.moveTo(cx + 6, py + 8);
-      ctx.lineTo(cx + 8, py + 18);
-      ctx.lineTo(cx + 4, py + 18);
+      ctx.moveTo(cx + 6, py + 8); ctx.lineTo(cx + 8, py + 18); ctx.lineTo(cx + 4, py + 18);
     }
     ctx.closePath();
     ctx.fill();
-
     ctx.fillStyle = '#eee';
     ctx.beginPath();
     ctx.moveTo(cx - 4, py + 10);
@@ -826,28 +733,22 @@
     ctx.lineTo(cx - 2, py + 20);
     ctx.closePath();
     ctx.fill();
-
     ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.arc(cx + 2 * dir, py + 7, 1.2, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.strokeStyle = '#8b5a2b';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(cx + 12 * dir, py + 10);
     ctx.lineTo(cx + 12 * dir, py + 42);
     ctx.stroke();
-
     ctx.strokeStyle = '#d9d2a6';
-    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(cx + 4 * dir, py + 22);
     ctx.lineTo(cx + 12 * dir, py + 20);
     ctx.stroke();
-
     ctx.strokeStyle = '#444';
-    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(cx - 3, py + 42);
     ctx.lineTo(cx - 6, py + 50);
@@ -863,14 +764,12 @@
     const h = frog.h;
     const eyeY = sy + h * 0.22;
     const bodyY = sy + h * 0.55;
-
     ctx.save();
     if (sy + h > WATER_Y) {
       ctx.beginPath();
       ctx.rect(0, 0, BASE_W, WATER_Y);
       ctx.clip();
     }
-
     ctx.strokeStyle = '#2c6b2f';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
@@ -882,22 +781,18 @@
     ctx.lineTo(sx + w * 0.94, sy + h * 1.02);
     ctx.lineTo(sx + w * 0.78, sy + h * 0.9);
     ctx.stroke();
-
     ctx.fillStyle = '#4d9f42';
     ctx.beginPath();
     ctx.ellipse(sx + w * 0.5, bodyY, w * 0.34, h * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = '#66bb57';
     ctx.beginPath();
     ctx.ellipse(sx + w * 0.5, sy + h * 0.42, w * 0.28, h * 0.23, 0, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = '#9bd37f';
     ctx.beginPath();
     ctx.ellipse(sx + w * 0.5, sy + h * 0.62, w * 0.2, h * 0.14, 0, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.strokeStyle = '#3f8f3f';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -906,33 +801,27 @@
     ctx.moveTo(sx + w * 0.62, sy + h * 0.68);
     ctx.lineTo(sx + w * 0.7, sy + h * 0.95);
     ctx.stroke();
-
     ctx.fillStyle = '#76c865';
     ctx.beginPath();
     ctx.arc(sx + w * 0.33, eyeY, w * 0.1, 0, Math.PI * 2);
     ctx.arc(sx + w * 0.67, eyeY, w * 0.1, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = '#fff';
     ctx.beginPath();
     ctx.arc(sx + w * 0.33, eyeY, w * 0.06, 0, Math.PI * 2);
     ctx.arc(sx + w * 0.67, eyeY, w * 0.06, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = '#111';
     ctx.beginPath();
     ctx.arc(sx + w * 0.33, eyeY, w * 0.028, 0, Math.PI * 2);
     ctx.arc(sx + w * 0.67, eyeY, w * 0.028, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.strokeStyle = '#2c6b2f';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.quadraticCurveTo(sx + w * 0.5, sy + h * 0.58, sx + w * 0.7, sy + h * 0.5);
     ctx.stroke();
-
     ctx.restore();
-
     if (Math.abs(sy + h - WATER_Y) < 18) {
       ctx.strokeStyle = 'rgba(255,255,255,0.6)';
       ctx.lineWidth = 2;
@@ -978,21 +867,17 @@
     ctx.fillRect(0, 0, BASE_W, BASE_H);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
-
     const charsToShow = Math.min(STORY_FULL.length, Math.floor(storyTick / STORY_REVEAL_SPEED));
-    const shown = STORY_FULL.slice(0, charsToShow).split('\n');
-
+    const shown = STORY_FULL.slice(0, charsToShow).split(STORY_SEPARATOR);
     ctx.font = '40px Arial';
     if (shown[0]) ctx.fillText(shown[0], BASE_W / 2, 180);
     ctx.font = '28px Arial';
     if (shown[1]) ctx.fillText(shown[1], BASE_W / 2, 260);
     if (shown[2]) ctx.fillText(shown[2], BASE_W / 2, 315);
-
     if (charsToShow >= STORY_FULL.length) {
       ctx.font = '22px Arial';
       ctx.fillText('Tap anywhere to begin', BASE_W / 2, 430);
     }
-
     ctx.textAlign = 'left';
   }
 
@@ -1026,15 +911,11 @@
     const level = levels[currentLevel];
     for (let i = 0; i < level.platforms.length; i += 1) {
       const p = level.platforms[i];
-      if (p.x + p.w >= camera.x - 40 && p.x <= camera.x + BASE_W + 40) {
-        drawPlatform(p);
-      }
+      if (p.x + p.w >= camera.x - 40 && p.x <= camera.x + BASE_W + 40) drawPlatform(p);
     }
     for (let i = 0; i < frogs.length; i += 1) {
       const frog = frogs[i];
-      if (frog.x + frog.w >= camera.x - 60 && frog.x <= camera.x + BASE_W + 60) {
-        drawFrog(frog);
-      }
+      if (frog.x + frog.w >= camera.x - 60 && frog.x <= camera.x + BASE_W + 60) drawFrog(frog);
     }
     drawMatzah(level.goal);
     drawStickFigure();
@@ -1045,16 +926,15 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+    if (gameState === 'title') drawTitleScreen();
+    else if (gameState === 'story') drawStoryScreen();
+    else if (gameState === 'win') drawWinScreen();
+    else drawGame();
+  }
 
-    if (gameState === 'title') {
-      drawTitleScreen();
-    } else if (gameState === 'story') {
-      drawStoryScreen();
-    } else if (gameState === 'win') {
-      drawWinScreen();
-    } else {
-      drawGame();
-    }
+  function beginAudioAndMusic() {
+    if (!audioCtx) return;
+    audioCtx.resume().then(function () { playMusic(); }).catch(function () {});
   }
 
   function advanceState() {
@@ -1063,16 +943,9 @@
       gameState = 'story';
       setStatus('Story');
       setHint('', false);
-      if (audioCtx) {
-        audioCtx.resume().then(function () {
-          playMusic();
-        }).catch(function () {});
-      } else {
-        playMusic();
-      }
+      beginAudioAndMusic();
       return;
     }
-
     if (gameState === 'story') {
       if (storyTick < STORY_FULL.length * STORY_REVEAL_SPEED) {
         storyTick = STORY_FULL.length * STORY_REVEAL_SPEED;
@@ -1081,31 +954,21 @@
       gameState = 'game';
       setStatus('Level ' + (currentLevel + 1));
       setHint('', false);
+      beginAudioAndMusic();
       return;
     }
-
     if (gameState === 'win') {
       resetGame();
-      setStatus('Tap anywhere to begin');
-  setHint('Playable on iPhone. Use touch controls below.', true);
     }
   }
 
   document.addEventListener('keydown', function (e) {
-    if (audioCtx && audioCtx.state === 'suspended') {
-      audioCtx.resume().then(function () { playMusic(); }).catch(function () {});
-    }
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
     if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
     if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.jump = true;
-
-    if (gameState !== 'game' || gameState === 'win') {
-      advanceState();
-    }
-
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
-      e.preventDefault();
-    }
+    beginAudioAndMusic();
+    if (gameState !== 'game' || gameState === 'win') advanceState();
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   });
 
   document.addEventListener('keyup', function (e) {
@@ -1115,9 +978,7 @@
   });
 
   canvas.addEventListener('pointerdown', function () {
-    if (audioCtx && audioCtx.state === 'suspended') {
-      audioCtx.resume().then(function () { playMusic(); }).catch(function () {});
-    }
+    beginAudioAndMusic();
     if (gameState !== 'game') advanceState();
   });
 
@@ -1126,22 +987,19 @@
   bindTouchButton(jumpBtn, 'jump');
 
   window.addEventListener('resize', resizeCanvas);
-  window.addEventListener('orientationchange', function () {
-    setTimeout(resizeCanvas, 50);
-  });
+  window.addEventListener('orientationchange', function () { setTimeout(resizeCanvas, 50); });
 
   function runSelfTests() {
-    console.assert(typeof setHint === 'function', 'setHint should exist');
-    console.assert(typeof audioCtx !== 'undefined' || audioCtx === null, 'audio context should be initialized or null');
+    console.assert(typeof resizeCanvas === 'function', 'resizeCanvas should exist');
+    console.assert(typeof playMusic === 'function', 'playMusic should exist');
+    console.assert(typeof advanceState === 'function', 'advanceState should exist');
+    console.assert(typeof melodyInterval !== 'undefined', 'melodyInterval should exist');
     console.assert(Array.isArray(levels) && levels.length === 5, 'levels should exist');
     console.assert(Array.isArray(frogLayouts) && frogLayouts.length === levels.length, 'frog layouts should match levels');
-    console.assert(typeof playMusic === 'function', 'playMusic should exist');
-    console.assert(typeof drawStoryScreen === 'function', 'drawStoryScreen should exist');
-    console.assert(typeof resizeCanvas === 'function', 'resizeCanvas should exist');
-    console.assert(typeof melodyInterval !== 'undefined', 'music interval variable should exist');
-    console.assert(WORLD_WIDTH > BASE_W, 'world should be wider than the base screen');
-    console.assert(STORY_FULL.indexOf('\n') > -1, 'story text should contain escaped newline separators');
-    console.assert(STORY_FULL.split('\n').length === STORY_LINES.length, 'story text should split into expected number of lines');
+    console.assert(levels[0].start.x >= 200, 'mobile start position should be shifted right');
+    console.assert(STORY_SEPARATOR === '\n', 'story separator should be the escaped newline sequence');
+    console.assert(STORY_FULL.split(STORY_SEPARATOR).length === STORY_LINES.length, 'story text should split into expected lines');
+    console.assert(STORY_FULL.indexOf(STORY_SEPARATOR) > -1, 'story text should contain escaped separators');
   }
 
   resizeCanvas();
@@ -1156,7 +1014,6 @@
     draw();
     requestAnimationFrame(loop);
   }
-
   loop();
 }());
 </script>
