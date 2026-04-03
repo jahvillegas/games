@@ -171,11 +171,13 @@
   let scaleY = 1;
   let melodyInterval = null;
   let droneInterval = null;
+  let lastTime = 0;
 
   const keys = { left: false, right: false, jump: false };
   const camera = { x: 0 };
   const frogs = [];
   const hail = [];
+  const locusts = [];
 
   const player = {
     x: 0,
@@ -323,6 +325,18 @@
     [{ x: 860, phase: 0.8, size: 1.0 }, { x: 1590, phase: 1.8, size: 1.1 }, { x: 2440, phase: 2.8, size: 0.95 }]
   ];
 
+  function rectsOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function playerRect() {
+    return { x: player.x, y: player.y, w: player.w, h: player.h };
+  }
+
+  function goalRect(goal) {
+    return { x: goal.x, y: goal.y, w: goal.w, h: goal.h };
+  }
+
   function resizeCanvas() {
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     const w = window.innerWidth;
@@ -337,10 +351,20 @@
     ctx.scale(scaleX, scaleY);
   }
 
-  function setStatus(text) { statusChip.textContent = text; }
+  function setStatus(text) {
+    statusChip.textContent = text;
+  }
+
   function setHint(text, visible) {
     hintBox.textContent = text;
     hintBox.style.display = visible ? 'block' : 'none';
+  }
+
+  function beginAudioAndMusic() {
+    if (!audioCtx) return;
+    audioCtx.resume().then(function () {
+      playMusic();
+    }).catch(function () {});
   }
 
   function bindTouchButton(btn, keyName) {
@@ -401,9 +425,10 @@
     if (!audioCtx || musicStarted) return;
     musicStarted = true;
     const scale = [293.66, 311.13, 369.99, 392.0, 440.0, 466.16, 523.25];
-    const melody = [0,1,2,1,0,4,3,2,1,2,4,3,2,1,0,6,4,3,2,1,0,1,2,4,3,2,1,0,4,2,1,0];
-    const durations = [0.22,0.18,0.22,0.18,0.28,0.22,0.18,0.32];
+    const melody = [0, 1, 2, 1, 0, 4, 3, 2, 1, 2, 4, 3, 2, 1, 0, 6, 4, 3, 2, 1, 0, 1, 2, 4, 3, 2, 1, 0, 4, 2, 1, 0];
+    const durations = [0.22, 0.18, 0.22, 0.18, 0.28, 0.22, 0.18, 0.32];
     let step = 0;
+
     melodyInterval = setInterval(function () {
       if (audioCtx.state !== 'running') return;
       const now = audioCtx.currentTime;
@@ -416,6 +441,7 @@
       if (step % 4 === 2) playDrum(now + 0.08, false);
       step += 1;
     }, 260);
+
     droneInterval = setInterval(function () {
       if (audioCtx.state !== 'running') return;
       const now = audioCtx.currentTime;
@@ -423,12 +449,6 @@
       playTone(scale[4] / 2, now + 0.2, 0.9, 'triangle', 0.01);
     }, 1100);
   }
-
-  function rectsOverlap(a, b) {
-    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-  }
-  function playerRect() { return { x: player.x, y: player.y, w: player.w, h: player.h }; }
-  function goalRect(goal) { return { x: goal.x, y: goal.y, w: goal.w, h: goal.h }; }
 
   function resetFrogs() {
     frogs.length = 0;
@@ -450,6 +470,7 @@
 
   function resetHazards() {
     hail.length = 0;
+    locusts.length = 0;
     resetFrogs();
   }
 
@@ -496,18 +517,36 @@
     }
   }
 
-  function update() {
+  function update(step) {
+    if (!step) step = 1;
+
     if (gameState === 'story') {
       storyTick += 1;
       return;
     }
     if (gameState !== 'game') return;
 
-    redWaterAmount += 0.00035;
+    redWaterAmount += 0.00035 * step;
     if (redWaterAmount > 1) redWaterAmount = 1;
 
     if (Math.random() < 0.012) {
-      hail.push({ x: camera.x + 40 + Math.random() * (BASE_W - 80), y: -10, vy: 4 + Math.random() * 2, size: 4 + Math.random() * 3 });
+      hail.push({
+        x: camera.x + 40 + Math.random() * (BASE_W - 80),
+        y: -10,
+        vy: 4 + Math.random() * 2,
+        size: 4 + Math.random() * 3
+      });
+    }
+
+    if (Math.random() < 0.004) {
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      locusts.push({
+        x: dir > 0 ? camera.x - 40 : camera.x + BASE_W + 40,
+        y: 120 + Math.random() * 260,
+        vx: (2 + Math.random() * 1.2) * dir,
+        bob: Math.random() * Math.PI * 2,
+        size: 0.8 + Math.random() * 0.35
+      });
     }
 
     const level = levels[currentLevel];
@@ -515,8 +554,14 @@
     const right = keys.right;
     const jump = keys.jump;
 
-    if (left) { player.vx -= MOVE_ACCEL; player.facing = -1; }
-    if (right) { player.vx += MOVE_ACCEL; player.facing = 1; }
+    if (left) {
+      player.vx -= MOVE_ACCEL;
+      player.facing = -1;
+    }
+    if (right) {
+      player.vx += MOVE_ACCEL;
+      player.facing = 1;
+    }
     if (!left && !right) {
       player.vx *= FRICTION;
       if (Math.abs(player.vx) < 0.05) player.vx = 0;
@@ -529,9 +574,9 @@
       keys.jump = false;
     }
 
-    player.vy += GRAVITY;
-    player.x += player.vx;
-    player.y += player.vy;
+    player.vy += GRAVITY * step;
+    player.x += player.vx * step;
+    player.y += player.vy * step;
     player.onGround = false;
 
     for (let i = 0; i < level.platforms.length; i += 1) {
@@ -547,7 +592,7 @@
 
     for (let i = 0; i < frogs.length; i += 1) {
       const frog = frogs[i];
-      frog.phase += 0.06;
+      frog.phase += 0.06 * step;
       frog.y = frog.baseY - Math.abs(Math.sin(frog.phase)) * frog.jumpHeight;
       const hitbox = { x: frog.x + frog.w * 0.1, y: frog.y + frog.h * 0.18, w: frog.w * 0.8, h: frog.h * 0.75 };
       if (rectsOverlap(playerRect(), hitbox)) {
@@ -558,12 +603,29 @@
 
     for (let i = hail.length - 1; i >= 0; i -= 1) {
       const h = hail[i];
-      h.y += h.vy;
+      h.y += h.vy * step;
       if (rectsOverlap(playerRect(), { x: h.x - h.size, y: h.y - h.size, w: h.size * 2, h: h.size * 2 })) {
         levelReset();
         return;
       }
-      if (h.y > WATER_Y || h.y > BASE_H + 20) hail.splice(i, 1);
+      if (h.y > WATER_Y || h.y > BASE_H + 20) {
+        hail.splice(i, 1);
+      }
+    }
+
+    for (let i = locusts.length - 1; i >= 0; i -= 1) {
+      const l = locusts[i];
+      l.x += l.vx * step;
+      l.bob += 0.08 * step;
+      l.y += Math.sin(l.bob) * 0.9 * step;
+      const hitbox = { x: l.x - 10 * l.size, y: l.y - 8 * l.size, w: 20 * l.size, h: 16 * l.size };
+      if (rectsOverlap(playerRect(), hitbox)) {
+        levelReset();
+        return;
+      }
+      if (l.x < camera.x - 120 || l.x > camera.x + BASE_W + 120) {
+        locusts.splice(i, 1);
+      }
     }
 
     if (player.x < -40) player.x = -40;
@@ -578,7 +640,7 @@
     }
 
     const targetCameraX = player.x - BASE_W * 0.35;
-    camera.x += (targetCameraX - camera.x) * 0.12;
+    camera.x += (targetCameraX - camera.x) * 0.12 * step;
     if (camera.x < 0) camera.x = 0;
     const maxCamera = WORLD_WIDTH - BASE_W;
     if (camera.x > maxCamera) camera.x = maxCamera;
@@ -593,6 +655,7 @@
     ctx.lineTo(sx, baseY);
     ctx.closePath();
     ctx.fill();
+
     ctx.fillStyle = rightColor;
     ctx.beginPath();
     ctx.moveTo(sx, topY);
@@ -609,13 +672,16 @@
     sky.addColorStop(1, '#7a4a2d');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, BASE_W, BASE_H);
+
     const bgShift = camera.x * 0.25;
     const duneShift = camera.x * 0.45;
     const nearShift = camera.x * 0.7;
+
     ctx.fillStyle = 'rgba(255,220,140,0.9)';
     ctx.beginPath();
     ctx.arc(150 - bgShift * 0.15, 120, 45, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.fillStyle = '#c98d4a';
     ctx.beginPath();
     ctx.moveTo(-500 - duneShift, 380);
@@ -626,12 +692,14 @@
     ctx.lineTo(-500 - duneShift, WATER_Y);
     ctx.closePath();
     ctx.fill();
+
     drawPyramid(900, 380, 150, 120, '#d8b26e', '#bf9756', bgShift);
     drawPyramid(650, 395, 100, 220, '#cfa662', '#b88949', bgShift);
     drawPyramid(1450, 390, 130, 160, '#d2ab68', '#b98d50', bgShift);
     drawPyramid(1850, 400, 110, 210, '#c9a15e', '#af8347', bgShift);
     drawPyramid(2350, 390, 140, 150, '#d8b26e', '#bf9756', bgShift);
     drawPyramid(2750, 400, 100, 220, '#cfa662', '#b88949', bgShift);
+
     ctx.fillStyle = '#e0b56d';
     ctx.beginPath();
     ctx.moveTo(-600 - nearShift, 470);
@@ -643,6 +711,7 @@
     ctx.lineTo(-600 - nearShift, WATER_Y);
     ctx.closePath();
     ctx.fill();
+
     const topR = Math.round(77 + (180 - 77) * redWaterAmount);
     const topG = Math.round(182 + (40 - 182) * redWaterAmount);
     const topB = Math.round(229 + (40 - 229) * redWaterAmount);
@@ -654,6 +723,7 @@
     waterGrad.addColorStop(1, 'rgb(' + botR + ',' + botG + ',' + botB + ')');
     ctx.fillStyle = waterGrad;
     ctx.fillRect(0, WATER_Y, BASE_W, BASE_H - WATER_Y);
+
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.lineWidth = 2;
     for (let row = 0; row < 3; row += 1) {
@@ -701,6 +771,7 @@
     const py = player.y;
     const cx = px + player.w / 2;
     const dir = player.facing >= 0 ? 1 : -1;
+
     ctx.fillStyle = '#d9d2a6';
     ctx.beginPath();
     ctx.moveTo(cx - 7, py + 15);
@@ -709,22 +780,30 @@
     ctx.lineTo(cx - 10, py + 42);
     ctx.closePath();
     ctx.fill();
+
     ctx.fillStyle = '#f2c7a5';
     ctx.beginPath();
     ctx.arc(cx, py + 8, 7, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.fillStyle = '#333';
     ctx.beginPath();
     ctx.arc(cx, py + 6, 7.5, Math.PI, 0);
     ctx.fill();
+
     ctx.beginPath();
     if (dir > 0) {
-      ctx.moveTo(cx - 6, py + 8); ctx.lineTo(cx - 8, py + 18); ctx.lineTo(cx - 4, py + 18);
+      ctx.moveTo(cx - 6, py + 8);
+      ctx.lineTo(cx - 8, py + 18);
+      ctx.lineTo(cx - 4, py + 18);
     } else {
-      ctx.moveTo(cx + 6, py + 8); ctx.lineTo(cx + 8, py + 18); ctx.lineTo(cx + 4, py + 18);
+      ctx.moveTo(cx + 6, py + 8);
+      ctx.lineTo(cx + 8, py + 18);
+      ctx.lineTo(cx + 4, py + 18);
     }
     ctx.closePath();
     ctx.fill();
+
     ctx.fillStyle = '#eee';
     ctx.beginPath();
     ctx.moveTo(cx - 4, py + 10);
@@ -733,21 +812,25 @@
     ctx.lineTo(cx - 2, py + 20);
     ctx.closePath();
     ctx.fill();
+
     ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.arc(cx + 2 * dir, py + 7, 1.2, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.strokeStyle = '#8b5a2b';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(cx + 12 * dir, py + 10);
     ctx.lineTo(cx + 12 * dir, py + 42);
     ctx.stroke();
+
     ctx.strokeStyle = '#d9d2a6';
     ctx.beginPath();
     ctx.moveTo(cx + 4 * dir, py + 22);
     ctx.lineTo(cx + 12 * dir, py + 20);
     ctx.stroke();
+
     ctx.strokeStyle = '#444';
     ctx.beginPath();
     ctx.moveTo(cx - 3, py + 42);
@@ -764,12 +847,14 @@
     const h = frog.h;
     const eyeY = sy + h * 0.22;
     const bodyY = sy + h * 0.55;
+
     ctx.save();
     if (sy + h > WATER_Y) {
       ctx.beginPath();
       ctx.rect(0, 0, BASE_W, WATER_Y);
       ctx.clip();
     }
+
     ctx.strokeStyle = '#2c6b2f';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
@@ -781,18 +866,22 @@
     ctx.lineTo(sx + w * 0.94, sy + h * 1.02);
     ctx.lineTo(sx + w * 0.78, sy + h * 0.9);
     ctx.stroke();
+
     ctx.fillStyle = '#4d9f42';
     ctx.beginPath();
     ctx.ellipse(sx + w * 0.5, bodyY, w * 0.34, h * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.fillStyle = '#66bb57';
     ctx.beginPath();
     ctx.ellipse(sx + w * 0.5, sy + h * 0.42, w * 0.28, h * 0.23, 0, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.fillStyle = '#9bd37f';
     ctx.beginPath();
     ctx.ellipse(sx + w * 0.5, sy + h * 0.62, w * 0.2, h * 0.14, 0, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.strokeStyle = '#3f8f3f';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -801,26 +890,31 @@
     ctx.moveTo(sx + w * 0.62, sy + h * 0.68);
     ctx.lineTo(sx + w * 0.7, sy + h * 0.95);
     ctx.stroke();
+
     ctx.fillStyle = '#76c865';
     ctx.beginPath();
     ctx.arc(sx + w * 0.33, eyeY, w * 0.1, 0, Math.PI * 2);
     ctx.arc(sx + w * 0.67, eyeY, w * 0.1, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.fillStyle = '#fff';
     ctx.beginPath();
     ctx.arc(sx + w * 0.33, eyeY, w * 0.06, 0, Math.PI * 2);
     ctx.arc(sx + w * 0.67, eyeY, w * 0.06, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.fillStyle = '#111';
     ctx.beginPath();
     ctx.arc(sx + w * 0.33, eyeY, w * 0.028, 0, Math.PI * 2);
     ctx.arc(sx + w * 0.67, eyeY, w * 0.028, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.strokeStyle = '#2c6b2f';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.quadraticCurveTo(sx + w * 0.5, sy + h * 0.58, sx + w * 0.7, sy + h * 0.5);
     ctx.stroke();
+
     ctx.restore();
     if (Math.abs(sy + h - WATER_Y) < 18) {
       ctx.strokeStyle = 'rgba(255,255,255,0.6)';
@@ -842,6 +936,60 @@
     }
   }
 
+  function drawLocusts() {
+    for (let i = 0; i < locusts.length; i += 1) {
+      const l = locusts[i];
+      const sx = l.x - camera.x;
+      const sy = l.y;
+      const dir = l.vx >= 0 ? 1 : -1;
+      const s = l.size;
+
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.scale(dir, 1);
+
+      ctx.strokeStyle = '#6b4f1d';
+      ctx.lineWidth = 1.5;
+      ctx.fillStyle = '#8a6a2b';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 8 * s, 4 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#a17d34';
+      ctx.beginPath();
+      ctx.ellipse(7 * s, -1 * s, 4 * s, 3 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(220,220,200,0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-2 * s, -1 * s);
+      ctx.lineTo(-8 * s, -6 * s);
+      ctx.moveTo(0, 1 * s);
+      ctx.lineTo(-8 * s, 6 * s);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#5c4318';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-2 * s, 2 * s);
+      ctx.lineTo(-8 * s, 8 * s);
+      ctx.moveTo(1 * s, 2 * s);
+      ctx.lineTo(-2 * s, 9 * s);
+      ctx.moveTo(4 * s, 2 * s);
+      ctx.lineTo(3 * s, 9 * s);
+      ctx.moveTo(6 * s, -2 * s);
+      ctx.lineTo(12 * s, -6 * s);
+      ctx.moveTo(7 * s, -1 * s);
+      ctx.lineTo(13 * s, -2 * s);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+  }
+
   function drawTitleScreen() {
     drawBackground();
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -854,7 +1002,7 @@
     ctx.fillText('Ancient Egypt Platform Adventure', BASE_W / 2, 225);
     ctx.font = '20px Arial';
     ctx.fillText('Use the touch buttons on iPhone', BASE_W / 2, 320);
-    ctx.fillText('Avoid frogs jumping from the water and occasional hail', BASE_W / 2, 355);
+    ctx.fillText('Avoid frogs, hail, and a few locusts', BASE_W / 2, 355);
     ctx.fillText('Reach the matzah at the end of each course', BASE_W / 2, 390);
     ctx.font = '28px Arial';
     ctx.fillText('Tap anywhere to continue', BASE_W / 2, 480);
@@ -901,13 +1049,14 @@
     ctx.font = '20px Arial';
     ctx.fillText('Level ' + (currentLevel + 1) + ' / ' + levels.length, 20, 32);
     ctx.font = '16px Arial';
-    ctx.fillText('Avoid frogs and falling hail', 20, 56);
+    ctx.fillText('Avoid frogs, hail, and a few locusts', 20, 56);
     ctx.fillText('Distance: ' + Math.floor(player.x) + ' / ' + WORLD_WIDTH, 20, 80);
   }
 
   function drawGame() {
     drawBackground();
     drawHail();
+    drawLocusts();
     const level = levels[currentLevel];
     for (let i = 0; i < level.platforms.length; i += 1) {
       const p = level.platforms[i];
@@ -930,11 +1079,6 @@
     else if (gameState === 'story') drawStoryScreen();
     else if (gameState === 'win') drawWinScreen();
     else drawGame();
-  }
-
-  function beginAudioAndMusic() {
-    if (!audioCtx) return;
-    audioCtx.resume().then(function () { playMusic(); }).catch(function () {});
   }
 
   function advanceState() {
@@ -987,7 +1131,9 @@
   bindTouchButton(jumpBtn, 'jump');
 
   window.addEventListener('resize', resizeCanvas);
-  window.addEventListener('orientationchange', function () { setTimeout(resizeCanvas, 50); });
+  window.addEventListener('orientationchange', function () {
+    setTimeout(resizeCanvas, 50);
+  });
 
   function runSelfTests() {
     console.assert(typeof resizeCanvas === 'function', 'resizeCanvas should exist');
@@ -996,11 +1142,24 @@
     console.assert(typeof melodyInterval !== 'undefined', 'melodyInterval should exist');
     console.assert(Array.isArray(levels) && levels.length === 5, 'levels should exist');
     console.assert(Array.isArray(frogLayouts) && frogLayouts.length === levels.length, 'frog layouts should match levels');
+    console.assert(Array.isArray(locusts), 'locust array should exist');
     console.assert(levels[0].start.x >= 200, 'mobile start position should be shifted right');
     console.assert(levels.every(function (lvl) { return lvl.platforms[0].w >= 320; }), 'each level should have a long starting platform');
     console.assert(STORY_SEPARATOR === '\n', 'story separator should be the escaped newline sequence');
     console.assert(STORY_FULL.split(STORY_SEPARATOR).length === STORY_LINES.length, 'story text should split into expected lines');
     console.assert(STORY_FULL.indexOf(STORY_SEPARATOR) > -1, 'story text should contain escaped separators');
+    console.assert(typeof drawLocusts === 'function', 'drawLocusts should exist');
+  }
+
+  function loop(time) {
+    if (!lastTime) lastTime = time;
+    const dt = Math.min(32, time - lastTime);
+    const step = dt / 16.67;
+    lastTime = time;
+
+    update(step);
+    draw();
+    window.requestAnimationFrame(loop);
   }
 
   resizeCanvas();
@@ -1009,13 +1168,7 @@
   runSelfTests();
   setStatus('Tap anywhere to begin');
   setHint('Playable on iPhone. Use touch controls below.', true);
-
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-  }
-  loop();
+  window.requestAnimationFrame(loop);
 }());
 </script>
 </body>
